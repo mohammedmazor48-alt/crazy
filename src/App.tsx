@@ -98,6 +98,7 @@ export default function App() {
 
   const [selectedDifficulty, setSelectedDifficulty] = useState<Difficulty>("MEDIUM");
   const [message, setMessage] = useState<string>("欢迎来到疯狂 8 点！");
+  const [aiThinkingTime, setAiThinkingTime] = useState<number>(0);
 
   // Initialize Game
   const initGame = useCallback((difficulty: Difficulty = "MEDIUM") => {
@@ -123,8 +124,18 @@ export default function App() {
       activeSuit: discardPile[0].suit,
       difficulty,
     });
+    setAiThinkingTime(0);
     setMessage(`游戏开始！难度：${DIFFICULTY_LABELS[difficulty].label}`);
   }, []);
+
+  const surrender = () => {
+    setGameState(prev => ({
+      ...prev,
+      status: "GAME_OVER",
+      winner: "AI",
+    }));
+    setMessage("你选择了放弃。");
+  };
 
   const checkPlayable = (card: Card) => {
     const topCard = gameState.discardPile[gameState.discardPile.length - 1];
@@ -236,6 +247,11 @@ export default function App() {
   // AI Turn Logic
   useEffect(() => {
     if (gameState.currentTurn === "AI" && gameState.status === "PLAYING") {
+      setAiThinkingTime(0);
+      const interval = setInterval(() => {
+        setAiThinkingTime(prev => prev + 1);
+      }, 1000);
+
       const timer = setTimeout(() => {
         const playableCards = gameState.aiHand.filter(checkPlayable);
         
@@ -272,10 +288,20 @@ export default function App() {
         } else {
           drawCard(false);
         }
+        clearInterval(interval);
       }, 1500);
-      return () => clearTimeout(timer);
+      return () => {
+        clearTimeout(timer);
+        clearInterval(interval);
+      };
+    } else {
+      setAiThinkingTime(0);
     }
   }, [gameState.currentTurn, gameState.status, gameState.difficulty]);
+
+  const canSurrender = gameState.status === "PLAYING" && (
+    aiThinkingTime >= 1 || (gameState.playerHand.length - gameState.aiHand.length > 2)
+  );
 
   const selectWildSuit = (suit: Suit) => {
     setGameState(prev => ({
@@ -348,6 +374,19 @@ export default function App() {
         </div>
         
         <div className="flex items-center gap-6">
+          <AnimatePresence>
+            {canSurrender && (
+              <motion.button
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: 20 }}
+                onClick={surrender}
+                className="px-4 py-1.5 bg-rose-50 text-rose-600 border border-rose-100 rounded-full text-sm font-bold hover:bg-rose-100 transition-colors flex items-center gap-2"
+              >
+                <AlertCircle size={14} /> 放弃
+              </motion.button>
+            )}
+          </AnimatePresence>
           <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-100 rounded-full border border-slate-200">
             <Cpu size={16} className="text-slate-500" />
             <span className="text-sm font-bold">{gameState.aiHand.length}</span>
@@ -402,7 +441,7 @@ export default function App() {
                 className="relative z-10"
               />
               <div className="absolute -bottom-6 left-1/2 -translate-x-1/2 whitespace-nowrap text-xs font-bold text-slate-400 uppercase tracking-widest">
-                Draw ({gameState.deck.length})
+                摸牌 ({gameState.deck.length})
               </div>
             </div>
           </div>
@@ -440,7 +479,7 @@ export default function App() {
               </motion.div>
             )}
             <div className="absolute -bottom-6 left-1/2 -translate-x-1/2 whitespace-nowrap text-xs font-bold text-slate-400 uppercase tracking-widest">
-              Discard
+              弃牌
             </div>
           </div>
         </div>
@@ -488,8 +527,8 @@ export default function App() {
               animate={{ scale: 1, y: 0 }}
               className="bg-white rounded-3xl shadow-2xl p-8 max-w-sm w-full text-center"
             >
-              <h3 className="text-2xl font-black mb-2">Wild 8!</h3>
-              <p className="text-slate-500 mb-8">Choose the new suit to play:</p>
+              <h3 className="text-2xl font-black mb-2">万能 8!</h3>
+              <p className="text-slate-500 mb-8">请选择接下来的花色：</p>
               <div className="grid grid-cols-2 gap-4">
                 {SUITS.map((suit) => (
                   <button
@@ -527,26 +566,26 @@ export default function App() {
               </div>
               
               <h2 className="text-4xl font-black mb-2 tracking-tight">
-                {gameState.winner === 'PLAYER' ? "VICTORY!" : "DEFEAT"}
+                {gameState.winner === 'PLAYER' ? "胜利！" : "失败"}
               </h2>
               <p className="text-slate-500 mb-10 leading-relaxed">
                 {gameState.winner === 'PLAYER' 
-                  ? "Incredible strategy! You've cleared your hand and conquered the AI." 
-                  : "The AI was too fast this time. Don't give up, try another round!"}
+                  ? "太棒了！你清空了手牌，战胜了 AI。" 
+                  : "AI 技高一筹。别灰心，再来一局吧！"}
               </p>
               
               <div className="flex flex-col gap-3">
                 <button 
-                  onClick={initGame}
+                  onClick={() => initGame(gameState.difficulty)}
                   className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-lg transition-all active:scale-95 shadow-lg shadow-indigo-200 flex items-center justify-center gap-2"
                 >
-                  <RotateCcw size={20} /> Play Again
+                  <RotateCcw size={20} /> 再来一局
                 </button>
                 <button 
                   onClick={() => setGameState(prev => ({ ...prev, status: 'START' }))}
                   className="w-full py-4 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl font-bold transition-all"
                 >
-                  Back to Menu
+                  返回主菜单
                 </button>
               </div>
             </motion.div>
@@ -557,12 +596,12 @@ export default function App() {
       {/* Footer Info */}
       <footer className="bg-white border-t border-slate-200 px-6 py-3 flex justify-between items-center text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em]">
         <div className="flex items-center gap-4">
-          <span>Rules: Match Suit or Rank</span>
+          <span>规则：匹配花色或点数</span>
           <span className="w-1 h-1 bg-slate-300 rounded-full" />
-          <span>8 is Wild</span>
+          <span>8 是万能牌</span>
         </div>
         <div>
-          Crazy Eights v1.0
+          疯狂 8 点 v1.0
         </div>
       </footer>
     </div>
